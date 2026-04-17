@@ -1,15 +1,18 @@
 # Backend image: FastAPI + Claude Agent SDK (bundled CLI ships in the wheel).
 FROM python:3.13-slim
 
-RUN pip install --no-cache-dir uv
+RUN pip install --no-cache-dir uv \
+    && useradd --create-home --shell /bin/bash app
 
 WORKDIR /app
 
-COPY pyproject.toml uv.lock ./
-RUN uv sync --frozen --no-dev
+COPY --chown=app:app pyproject.toml uv.lock ./
+RUN uv sync --frozen --no-dev && chown -R app:app /app
 
-COPY agent_auth.py ./
-COPY server ./server
+COPY --chown=app:app agent_auth.py ./
+COPY --chown=app:app server ./server
+
+USER app
 
 ENV PORT=8000
 EXPOSE 8000
