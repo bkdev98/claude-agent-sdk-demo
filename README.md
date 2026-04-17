@@ -2,6 +2,8 @@
 
 A small chat playground built on top of the [Claude Agent SDK for Python](https://github.com/anthropics/claude-agent-sdk-python). Streams responses from a locally-spawned `claude` CLI, exposes them through SSE to a Next.js + [prompt-kit](https://www.prompt-kit.com) UI, and lets you drive tools, system prompts and permissions via slash commands.
 
+![agent-sdk-demo chat with the slash-command menu open](docs/hero.png)
+
 ```
 ┌────────────┐     SSE      ┌────────────┐     spawn     ┌──────────┐
 │  Next.js   │ ───────────▶ │  FastAPI   │ ────────────▶ │ claude   │
