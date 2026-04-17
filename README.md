@@ -52,18 +52,19 @@ Type `/` in the composer to open a typeahead.
 | `/joke` | Ask Claude for a programming joke |
 | `/system <prompt>` | Override the system prompt for next turns |
 | `/model <id\|clear>` | Pin a model (e.g. `claude-sonnet-4-6`) |
-| `/tools <all\|none\|Name,Name>` | Enable tool use |
+| `/tools <all\|none\|demo\|Name,Name>` | Enable tools. `demo` exposes the in-process SDK MCP tools (`roll_dice`, `flip_coin`, `now`) defined in `server/sdk_tools.py` |
 | `/deny <Name,Name\|none>` | Deny-list specific tools |
 | `/permissions <default\|bypass\|plan\|acceptEdits>` | Set the SDK permission mode |
 
-When tools are enabled, each call surfaces an Allow / Deny card inline before running. Implementation note: this works thanks to a `PreToolUse` hook returning `permissionDecision: "ask"` — see [SDK issue #469](https://github.com/anthropics/claude-agent-sdk-python/issues/469).
+When tools are enabled, each call surfaces an Allow / Deny card inline before running, and the card shows the tool's elapsed time once it completes (captured by a `PostToolUse` hook). Implementation note on permissions: the Allow/Deny flow works thanks to a `PreToolUse` hook returning `permissionDecision: "ask"` — see [SDK issue #469](https://github.com/anthropics/claude-agent-sdk-python/issues/469).
 
 ## Layout
 
 ```
 agent_auth.py             scrubs token env vars (default) or passes them through (AUTH_MODE=token)
 demo.py                   minimal SDK round-trip script
-server/main.py            FastAPI SSE + permission queue + slash-command-friendly options
+server/main.py            FastAPI SSE + permission queue + Pre/PostToolUse hooks
+server/sdk_tools.py       in-process MCP server (`@tool`-decorated Python functions)
 web/src/app/              Next.js app router page
 web/src/components/chat/  header, empty-state, bubble, composer, slash-menu, tool-call card
 web/src/lib/              useChat hook, SSE client, slash-command registry

@@ -19,6 +19,7 @@ import asyncio
 import json
 import logging
 import os
+import time
 import uuid
 from typing import Any, AsyncIterator
 
@@ -43,6 +44,7 @@ from claude_agent_sdk import (
 from claude_agent_sdk.types import ToolPermissionContext, ToolResultBlock
 
 from agent_auth import report_stripped, scrubbed_env
+from server.sdk_tools import DEMO_TOOL_NAMES, build_demo_server
 
 log = logging.getLogger("agent-sdk-demo")
 logging.basicConfig(
@@ -104,34 +106,26 @@ def _sse(event: str, data: dict | str) -> dict:
     return {"event": event, "data": payload}
 
 
-async def _force_ask_hook(
-    input_data: dict[str, Any],
-    tool_use_id: str | None,
-    context: Any,
-) -> dict[str, Any]:
-    """Workaround for SDK issue #469: returning permissionDecision:'ask' from a
-    PreToolUse hook is what flips the CLI into routing the call through the
-    SDK's can_use_tool callback (instead of auto-allowing)."""
-    return {
-        "hookSpecificOutput": {
-            "hookEventName": "PreToolUse",
-            "permissionDecision": "ask",
-            "permissionDecisionReason": "demo: route through SDK approval",
-        }
-    }
-
-
 def _resolve_tools(
     tools: list[str] | None,
 ) -> tuple[list[str] | dict[str, Any] | None, bool]:
     """Translate the wire `tools` field to ClaudeAgentOptions form.
+
+    Special aliases handled:
+      - `["*"]` → preset 'claude_code' (all built-in Claude Code tools)
+      - The literal `"demo"` (alone or in a list) expands to our SDK MCP tools.
     Returns (resolved, has_tools)."""
     if tools is None or len(tools) == 0:
         return [], False
     if tools == ["*"]:
-        # All built-in Claude Code tools.
         return {"type": "preset", "preset": "claude_code"}, True
-    return tools, True
+    expanded: list[str] = []
+    for entry in tools:
+        if entry == "demo":
+            expanded.extend(DEMO_TOOL_NAMES)
+        else:
+            expanded.append(entry)
+    return expanded, True
 
 
 async def _stream_reply(req: ChatRequest) -> AsyncIterator[dict]:
@@ -208,16 +202,55 @@ async def _stream_reply(req: ChatRequest) -> AsyncIterator[dict]:
         # (which often pre-approve Bash, etc.) won't bypass our prompt.
         setting_sources=[],
     )
+    # ---- hooks: force-ask + per-tool latency capture --------------------
+    # Per-tool start times keyed by tool_use_id. Populated in PreToolUse,
+    # consumed in PostToolUse to compute and emit a `tool_metric` event.
+    tool_started: dict[str, float] = {}
+
+    async def pre_tool_hook(
+        input_data: dict[str, Any],
+        tool_use_id: str | None,
+        _context: Any,
+    ) -> dict[str, Any]:
+        if tool_use_id:
+            tool_started[tool_use_id] = time.monotonic()
+        # Workaround for SDK issue #469 — returning "ask" routes the CLI's
+        # permission request through can_use_tool instead of auto-allowing.
+        return {
+            "hookSpecificOutput": {
+                "hookEventName": "PreToolUse",
+                "permissionDecision": "ask",
+                "permissionDecisionReason": "demo: route through SDK approval",
+            }
+        }
+
+    async def post_tool_hook(
+        input_data: dict[str, Any],
+        tool_use_id: str | None,
+        _context: Any,
+    ) -> dict[str, Any]:
+        if tool_use_id and tool_use_id in tool_started:
+            duration_ms = int((time.monotonic() - tool_started.pop(tool_use_id)) * 1000)
+            await out_queue.put(
+                _sse(
+                    "tool_metric",
+                    {"tool_use_id": tool_use_id, "duration_ms": duration_ms},
+                )
+            )
+        return {}
+
     if has_tools:
-        # Register the permission callback. By itself, the bundled CLI
-        # (≤2.1.112) won't actually invoke it (see anthropics/claude-agent-sdk-python
-        # issue #469). The PreToolUse hook below — returning
-        # `permissionDecision: "ask"` — flips the CLI into asking mode,
-        # which is what makes can_use_tool actually fire end-to-end.
+        # can_use_tool: SDK invokes it via the stdio control protocol.
+        # The PreToolUse "ask" hook is what makes the CLI actually emit those
+        # control requests (see anthropics/claude-agent-sdk-python#469).
         options_kwargs["can_use_tool"] = can_use_tool
         options_kwargs["hooks"] = {
-            "PreToolUse": [HookMatcher(matcher=None, hooks=[_force_ask_hook])],
+            "PreToolUse": [HookMatcher(matcher=None, hooks=[pre_tool_hook])],
+            "PostToolUse": [HookMatcher(matcher=None, hooks=[post_tool_hook])],
         }
+        # Always expose the in-process demo MCP server. Agent only sees the
+        # tools that are also in `tools=`, so this is free when not selected.
+        options_kwargs["mcp_servers"] = {"demo": build_demo_server()}
     # If tools are enabled and the client didn't pin a mode, force 'default'
     # so the SDK actually routes calls through can_use_tool instead of
     # short-circuiting (some CLI builds auto-allow when mode is unset).

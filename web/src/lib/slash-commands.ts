@@ -77,9 +77,9 @@ export const SLASH_COMMANDS: SlashCommand[] = [
   },
   {
     name: "tools",
-    usage: "/tools <all | none | Name,Name,…>",
+    usage: "/tools <all | none | demo | Name,Name,…>",
     description:
-      "Allow tools for next turns. 'all' enables Claude Code's preset.",
+      "Allow tools for next turns. 'all' = Claude Code preset, 'demo' = in-process SDK MCP tools (roll_dice, flip_coin, now).",
     kind: "set-tools",
   },
   {

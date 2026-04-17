@@ -32,6 +32,7 @@ export type ChatMessage = {
   status?: ToolCallStatus;
   requestId?: string; // present while status === "pending"
   result?: string;
+  durationMs?: number; // captured by PostToolUse hook
 };
 
 export type ChatStats = {
@@ -188,6 +189,15 @@ export function useChat() {
                 result: content,
                 requestId: undefined,
               },
+            );
+          } else if (frame.event === "tool_metric") {
+            const { tool_use_id, duration_ms } = JSON.parse(frame.data) as {
+              tool_use_id: string;
+              duration_ms: number;
+            };
+            updateMessage(
+              (m) => m.role === "tool_call" && m.toolUseId === tool_use_id,
+              { durationMs: duration_ms },
             );
           } else if (frame.event === "done") {
             const payload = JSON.parse(frame.data) as ChatStats;

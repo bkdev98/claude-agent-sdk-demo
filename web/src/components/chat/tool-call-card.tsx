@@ -61,6 +61,11 @@ export function ToolCallCard({ message, onResolve }: ToolCallCardProps) {
             {summarizeInput(message.input)}
           </span>
         </div>
+        {message.durationMs != null && (
+          <span className="font-mono text-[10px] tabular-nums text-muted-foreground">
+            {message.durationMs} ms
+          </span>
+        )}
         <span
           className={cn(
             "rounded-full px-2 py-0.5 text-[10px] font-medium uppercase tracking-wide",
