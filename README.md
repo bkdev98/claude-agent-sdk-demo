@@ -58,6 +58,12 @@ Type `/` in the composer to open a typeahead.
 
 When tools are enabled, each call surfaces an Allow / Deny card inline before running, and the card shows the tool's elapsed time once it completes (captured by a `PostToolUse` hook). Implementation note on permissions: the Allow/Deny flow works thanks to a `PreToolUse` hook returning `permissionDecision: "ask"` — see [SDK issue #469](https://github.com/anthropics/claude-agent-sdk-python/issues/469).
 
+### Demo: in-process MCP tool
+
+`/tools demo` exposes the SDK MCP server defined in `server/sdk_tools.py` — three Python `@tool` functions (`roll_dice`, `flip_coin`, `now`) registered via `create_sdk_mcp_server` and surfaced to Claude as `mcp__demo__*`. They run in the same Python process as the backend with no IPC.
+
+![Calling the in-process roll_dice MCP tool from chat](docs/mcp-tool-demo.png)
+
 ## Layout
 
 ```
