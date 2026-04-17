@@ -37,7 +37,7 @@ Copy the token; you'll set it as `CLAUDE_CODE_OAUTH_TOKEN` on the backend servic
 | --- | --- | --- |
 | `AUTH_MODE` | `token` | Stops `agent_auth.py` from stripping the OAuth token |
 | `CLAUDE_CODE_OAUTH_TOKEN` | output of `claude setup-token` | Headless CLI auth |
-| `ALLOW_ORIGINS` | `https://web-…up.railway.app` | CORS allow-list (set after frontend URL is known) |
+| `ALLOW_ORIGINS` | `https://web-…up.railway.app` | CORS allow-list (must include the `https://` scheme; comma-separate multiple origins) |
 | `PORT` | (Railway injects this) | Uvicorn binds to it |
 
 ---
