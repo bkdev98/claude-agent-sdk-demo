@@ -202,6 +202,11 @@ async def _stream_reply(req: ChatRequest) -> AsyncIterator[dict]:
         # (which often pre-approve Bash, etc.) won't bypass our prompt.
         setting_sources=[],
     )
+    # Resolve mode early so hooks can branch on it.
+    effective_mode = req.permission_mode or ("default" if has_tools else None)
+    # Modes that intentionally skip the approval UI.
+    auto_allow_mode = effective_mode in ("bypassPermissions", "acceptEdits")
+
     # ---- hooks: force-ask + per-tool latency capture --------------------
     # Per-tool start times keyed by tool_use_id. Populated in PreToolUse,
     # consumed in PostToolUse to compute and emit a `tool_metric` event.
@@ -214,6 +219,10 @@ async def _stream_reply(req: ChatRequest) -> AsyncIterator[dict]:
     ) -> dict[str, Any]:
         if tool_use_id:
             tool_started[tool_use_id] = time.monotonic()
+        # In bypass/accept-edits mode, don't force "ask" — let the CLI run
+        # the tool without routing through can_use_tool.
+        if auto_allow_mode:
+            return {}
         # Workaround for SDK issue #469 — returning "ask" routes the CLI's
         # permission request through can_use_tool instead of auto-allowing.
         return {
@@ -254,7 +263,6 @@ async def _stream_reply(req: ChatRequest) -> AsyncIterator[dict]:
     # If tools are enabled and the client didn't pin a mode, force 'default'
     # so the SDK actually routes calls through can_use_tool instead of
     # short-circuiting (some CLI builds auto-allow when mode is unset).
-    effective_mode = req.permission_mode or ("default" if has_tools else None)
     if effective_mode:
         options_kwargs["permission_mode"] = effective_mode  # type: ignore[arg-type]
     log.info(
