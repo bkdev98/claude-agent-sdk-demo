@@ -43,7 +43,7 @@ export function ChatBubble({
   if (message.role === "user") {
     return (
       <Message className="justify-end">
-        <MessageContent className="max-w-[80%] text-pretty rounded-2xl bg-secondary px-4 py-2.5 text-secondary-foreground">
+        <MessageContent className="max-w-[80%] text-pretty rounded-2xl bg-secondary px-4 py-2.5 text-sm text-secondary-foreground">
           {message.content}
         </MessageContent>
       </Message>
